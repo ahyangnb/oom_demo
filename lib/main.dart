@@ -375,7 +375,7 @@ class _VapDemoPageState extends State<VapDemoPage>
                                   ),
                                 ),
                               ),
-                            for (var i = 0; i < selectedImages.length; i++)
+                            for (var i = 0; i < 2; i++)
                               Positioned(
                                 left: 40.0 * i,
                                 bottom: 10,
