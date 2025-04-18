@@ -12,6 +12,7 @@ import 'package:oom_demo/fps_utils.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:ui';
+import 'dart:math';
 
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -72,8 +73,19 @@ class VapDemoPage extends StatefulWidget {
   State<VapDemoPage> createState() => _VapDemoPageState();
 }
 
-class _VapDemoPageState extends State<VapDemoPage> {
+class _VapDemoPageState extends State<VapDemoPage>
+    with TickerProviderStateMixin {
   String get playerTag => widget.playTag;
+
+  // Store multiple VAP players
+  // 存储多个 VAP 播放器
+  final List<String> _activePlayers = [];
+
+  // Animation related variables
+  // 动画相关变量
+  List<AnimationGroup> _animationGroups =
+      []; // Store multiple groups of animations
+  bool _isAnimating = false;
 
   // Video URLs for demo
   final List<String> videoUrls = [
@@ -121,30 +133,120 @@ class _VapDemoPageState extends State<VapDemoPage> {
   @override
   void initState() {
     super.initState();
-    // Initialize the queue utility for this player instance
+    // Initialize base player
+    // 初始化基础播放器
     QueueUtil.init(playerTag);
   }
 
   @override
   void dispose() {
-    // Clean up resources when disposing
+    // Clean up all VAP players
+    // 清理所有 VAP 播放器
+    for (var tag in _activePlayers) {
+      QueueUtil.get(tag)?.clear();
+      QueueUtil.remove(tag);
+    }
+    _activePlayers.clear();
+
+    // Clean up base player
+    // 清理基础播放器
     QueueUtil.get(playerTag)?.clear();
     QueueUtil.remove(playerTag);
+
+    // Clean up all animation groups
+    // 清理所有动画组
+    for (var group in _animationGroups) {
+      group.dispose();
+    }
     _refreshController.dispose();
 
     super.dispose();
   }
 
-  // Play a VAP video
-  void _playVideo(String url) {
-    QueueUtil.get(playerTag)?.addTask(
-      url,
-      fill: "1", // 1 for cover mode
-      callBack: (data, data1) {
-        // Callback when video playback completes
-        print('Video playback completed');
-      },
-    );
+  // Create explosion animation
+  // 创建爆炸动画
+  void _createExplosionAnimation() {
+    print("Creating new animation group"); // Debug print
+
+    setState(() {
+      late final AnimationGroup group;
+      group = AnimationGroup(
+        vsync: this,
+        onComplete: () {
+          setState(() {
+            // Remove the group when all its animations complete
+            // 当所有动画完成时移除该组
+            _animationGroups.remove(group);
+          });
+        },
+      );
+      _animationGroups.add(group);
+    });
+  }
+
+  // Play a VAP video with a unique tag
+  // 使用唯一标签播放 VAP 视频
+  Future<void> _playVideo(String url) async {
+    try {
+      final uniqueTag = "player_${DateTime.now().millisecondsSinceEpoch}";
+
+      // Initialize queue for this player
+      // 初始化此播放器的队列
+      QueueUtil.init(uniqueTag);
+
+      // Add to active players after initialization
+      // 初始化后添加到活动播放器列表
+      setState(() {
+        _activePlayers.add(uniqueTag);
+      });
+
+      // Wait for widget to build
+      // 等待部件构建
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      if (!mounted) return;
+
+      // Play the video
+      // 播放视频
+      await QueueUtil.get(uniqueTag)?.addTask(
+        url,
+        fill: "1", // 1 for cover mode
+        callBack: (data, data1) {
+          if (!mounted) return;
+          // Remove player when video completes
+          // 视频完成时移除播放器
+          setState(() {
+            _activePlayers.remove(uniqueTag);
+          });
+          QueueUtil.get(uniqueTag)?.clear();
+          QueueUtil.remove(uniqueTag);
+          print('Video playback completed for $uniqueTag');
+        },
+      );
+    } catch (e) {
+      print('Error playing video: $e');
+      // Clean up on error
+      // 错误时清理
+      final uniqueTag = "player_${DateTime.now().millisecondsSinceEpoch}";
+      if (_activePlayers.contains(uniqueTag)) {
+        setState(() {
+          _activePlayers.remove(uniqueTag);
+        });
+        QueueUtil.get(uniqueTag)?.clear();
+        QueueUtil.remove(uniqueTag);
+      }
+
+      // Show error to user
+      // 向用户显示错误
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to play video: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget buildSwiper(List<String> imageUrls) {
@@ -164,6 +266,10 @@ class _VapDemoPageState extends State<VapDemoPage> {
       ),
     );
   }
+
+  late final flyImage = getRandomImg(10);
+
+  late final sameImageImage = getRandomImg(19);
 
   @override
   Widget build(BuildContext context) {
@@ -189,86 +295,6 @@ class _VapDemoPageState extends State<VapDemoPage> {
             icon: const Icon(Icons.play_circle),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          showDialog(
-            context: context,
-            barrierColor: Colors.black.withOpacity(0.5),
-            builder: (context) {
-              final selectedImages = List.generate(5, getRandomImg);
-
-              return BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                child: AlertDialog(
-                  backgroundColor: Colors.black.withOpacity(0.8),
-                  contentPadding: const EdgeInsets.all(16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Stack of circular images
-                      SizedBox(
-                        height: 120,
-                        width: 200,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            for (var i = 0; i < selectedImages.length; i++)
-                              Positioned(
-                                left: 40.0 * i,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: Colors.white, width: 2),
-                                  ),
-                                  child: ClipOval(
-                                    child: CachedNetworkImage(
-                                      imageUrl: selectedImages[i],
-                                      width: 20,
-                                      height: 20,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) =>
-                                          const Center(
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      // Video buttons
-                      for (int i = 0; i < videoUrls.length; i++)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white.withOpacity(0.2),
-                              foregroundColor: Colors.white,
-                            ),
-                            onPressed: () {
-                              _playVideo(videoUrls[i]);
-                              Navigator.pop(context);
-                            },
-                            child: Text('Play Video ${i + 1}'),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
-        child: const Icon(Icons.play_circle),
       ),
       body: Stack(
         children: [
@@ -349,6 +375,30 @@ class _VapDemoPageState extends State<VapDemoPage> {
                                   ),
                                 ),
                               ),
+                            for (var i = 0; i < selectedImages.length; i++)
+                              Positioned(
+                                left: 40.0 * i,
+                                bottom: 10,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.white, width: 2),
+                                  ),
+                                  child: ClipOval(
+                                    child: CachedNetworkImage(
+                                      imageUrl: sameImageImage,
+                                      width: 20,
+                                      height: 20,
+                                      fit: BoxFit.cover,
+                                      placeholder: (context, url) =>
+                                          const Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             Marquee(
                               text: 'There ',
                             ),
@@ -404,15 +454,166 @@ class _VapDemoPageState extends State<VapDemoPage> {
             ),
           ),
 
-          // Player view takes full screen
-          Positioned.fill(
-            child: PlayerView(
-              tag: playerTag,
-              ignoring: true, // Ignore touch events
-              autoRemove: true, // Auto remove when done
+          // Multiple VAP players
+          // 多个 VAP 播放器
+          if (_activePlayers.isNotEmpty) ...[
+            for (final tag in _activePlayers)
+              Positioned.fill(
+                child: PlayerView(
+                  key: ValueKey(tag), // Add key for better widget management
+                  tag: tag,
+                  ignoring: true,
+                  autoRemove: true,
+                ),
+              ),
+          ],
+          // Animated images
+          // 动画图片
+          ..._animationGroups.map(
+            (group) => Positioned.fill(
+              child: IgnorePointer(
+                child: Stack(
+                  children: List.generate(30, (index) {
+                    return AnimatedBuilder(
+                      animation: group.controllers[index],
+                      builder: (context, child) {
+                        return Positioned(
+                          left: MediaQuery.of(context).size.width / 2 +
+                              group.positionAnimations[index].value.dx,
+                          top: MediaQuery.of(context).size.height / 2 +
+                              group.positionAnimations[index].value.dy,
+                          child: Transform.scale(
+                            scale: group.scaleAnimations[index].value,
+                            child: Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border:
+                                    Border.all(color: Colors.white, width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.3),
+                                    blurRadius: 5,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                                image: DecorationImage(
+                                  image: CachedNetworkImageProvider(
+                                    flyImage,
+                                    cacheManager: CustomCacheManager.instance,
+                                  ),
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  }),
+                ),
+              ),
             ),
           ),
-          // Control buttons
+        ],
+      ),
+      floatingActionButton: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // Explosion animation button
+          // 爆炸动画按钮
+          FloatingActionButton(
+            onPressed: _createExplosionAnimation,
+            heroTag: 'explode',
+            child: const Icon(Icons.auto_awesome),
+          ),
+          const SizedBox(width: 16),
+          // VAP player button
+          // VAP 播放器按钮
+          FloatingActionButton(
+            onPressed: () {
+              showDialog(
+                context: context,
+                barrierColor: Colors.black.withOpacity(0.5),
+                builder: (context) {
+                  final selectedImages = List.generate(5, getRandomImg);
+
+                  return BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                    child: AlertDialog(
+                      backgroundColor: Colors.black.withOpacity(0.8),
+                      contentPadding: const EdgeInsets.all(16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Stack of circular images
+                          SizedBox(
+                            height: 120,
+                            width: 200,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                for (var i = 0; i < selectedImages.length; i++)
+                                  Positioned(
+                                    left: 40.0 * i,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                            color: Colors.white, width: 2),
+                                      ),
+                                      child: ClipOval(
+                                        child: CachedNetworkImage(
+                                          imageUrl: selectedImages[i],
+                                          width: 20,
+                                          height: 20,
+                                          fit: BoxFit.cover,
+                                          placeholder: (context, url) =>
+                                              const Center(
+                                            child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          // Video buttons - now each button starts a new VAP instance
+                          // 视频按钮 - 现在每个按钮启动一个新的 VAP 实例
+                          for (int i = 0; i < videoUrls.length; i++)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor:
+                                      Colors.white.withOpacity(0.2),
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () {
+                                  _playVideo(videoUrls[i]);
+                                  Navigator.pop(context);
+                                },
+                                child: Text('Play Video ${i + 1}'),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+            heroTag: 'vap',
+            child: const Icon(Icons.play_circle),
+          ),
         ],
       ),
     );
@@ -617,5 +818,87 @@ class _GameWebViewPageState extends State<GameWebViewPage> {
       ),
       body: WebViewWidget(controller: _controller),
     );
+  }
+}
+
+// Animation group class to manage a set of related animations
+// 动画组类，用于管理一组相关的动画
+class AnimationGroup {
+  final List<AnimationController> controllers = [];
+  final List<Animation<double>> scaleAnimations = [];
+  final List<Animation<Offset>> positionAnimations = [];
+  final TickerProvider vsync;
+  final VoidCallback onComplete;
+  int _completedAnimations = 0;
+
+  AnimationGroup({
+    required this.vsync,
+    required this.onComplete,
+  }) {
+    _initializeAnimations();
+  }
+
+  void _initializeAnimations() {
+    // Create 30 animations
+    // 创建30个动画
+    for (var i = 0; i < 30; i++) {
+      final controller = AnimationController(
+        duration: const Duration(milliseconds: 1500),
+        vsync: vsync,
+      );
+
+      // Random angle for each image
+      // 每个图片的随机角度
+      final angle = (i * 12.0) * (3.14159 / 180.0);
+      final radius = 300.0; // Maximum distance from center
+
+      // Create position animation
+      // 创建位置动画
+      final positionAnimation = Tween<Offset>(
+        begin: Offset.zero,
+        end: Offset(
+          radius * cos(angle),
+          radius * sin(angle),
+        ),
+      ).animate(
+        CurvedAnimation(
+          parent: controller,
+          curve: Curves.easeOut,
+        ),
+      );
+
+      // Create scale animation
+      // 创建缩放动画
+      final scaleAnimation = Tween<double>(
+        begin: 1.0,
+        end: 0.0,
+      ).animate(
+        CurvedAnimation(
+          parent: controller,
+          curve: const Interval(0.7, 1.0, curve: Curves.easeOut),
+        ),
+      );
+
+      controllers.add(controller);
+      positionAnimations.add(positionAnimation);
+      scaleAnimations.add(scaleAnimation);
+
+      // Start animation with delay
+      // 延迟开始动画
+      Future.delayed(Duration(milliseconds: (i * 50)), () {
+        controller.forward().then((_) {
+          _completedAnimations++;
+          if (_completedAnimations == 30) {
+            onComplete();
+          }
+        });
+      });
+    }
+  }
+
+  void dispose() {
+    for (var controller in controllers) {
+      controller.dispose();
+    }
   }
 }
