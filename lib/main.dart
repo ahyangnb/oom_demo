@@ -602,7 +602,19 @@ class _GameWebViewPageState extends State<GameWebViewPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('4399 WebView')),
+      appBar: AppBar(
+        title: Text('4399 WebView'),
+        actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.of(context).push(CupertinoPageRoute(builder: (context) {
+                return VapDemoPage(playTag: "demo_player${DateTime.now()}");
+              }));
+            },
+            icon: const Icon(Icons.play_circle),
+          ),
+        ],
+      ),
       body: WebViewWidget(controller: _controller),
     );
   }
