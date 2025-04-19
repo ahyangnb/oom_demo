@@ -41,7 +41,7 @@ dependencies:
   webview_flutter: 4.8.0
   cached_network_image: 3.4.1
   flutter_cache_manager: 3.4.1
-  extended_text: 13.1.0
+  extended_text: 15.0.2
   card_swiper: 3.0.1                             # 滑动/旋转功能，具有多种布局，无限循环
   flutter_vap: 
     path: ./td/flutter_vap-main
