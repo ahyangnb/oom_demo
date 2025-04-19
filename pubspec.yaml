@@ -20,6 +20,7 @@ version: 1.0.0+1
 
 environment:
   sdk: '>=3.4.4 <4.0.0'
+  flutter: '3.22.3'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -38,16 +39,16 @@ dependencies:
 
   pull_to_refresh: 2.0.0        # 下拉上拉加载
   webview_flutter: 4.8.0
-  cached_network_image: ^3.4.1
-  flutter_cache_manager: ^3.4.1
-  extended_text: ^13.1.0
+  cached_network_image: 3.4.1
+  flutter_cache_manager: 3.4.1
+  extended_text: 13.1.0
   card_swiper: 3.0.1                             # 滑动/旋转功能，具有多种布局，无限循环
   flutter_vap: 
     path: ./td/flutter_vap-main
 
 dependency_overrides:
   marquee: 2.2.3
-  fading_edge_scrollview: ^4.0.0
+  fading_edge_scrollview: 4.1.1
 
 dev_dependencies:
   flutter_test:
