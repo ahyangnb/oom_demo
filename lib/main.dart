@@ -255,24 +255,6 @@ class _VapDemoPageState extends State<VapDemoPage>
     }
   }
 
-  Widget buildSwiper(List<String> imageUrls) {
-    return SizedBox(
-      height: 100,
-      child: Swiper(
-        itemBuilder: (BuildContext context, int index) {
-          return CachedNetworkImage(
-            imageUrl: imageUrls[index],
-            fit: BoxFit.cover,
-          );
-        },
-        itemCount: imageUrls.length,
-        autoplay: true,
-        pagination: const SwiperPagination(),
-        control: const SwiperControl(),
-      ),
-    );
-  }
-
   late final flyImage = getRandomImg(10);
 
   late final sameImageImage = getRandomImg(19);
@@ -333,14 +315,12 @@ class _VapDemoPageState extends State<VapDemoPage>
             onLoading: _onLoading,
             child: CustomScrollView(
               slivers: [
-                SliverToBoxAdapter(
-                  child: Container(
-                    child: const Text("Hello"),
-                  ),
+                const SliverToBoxAdapter(
+                  child: Text("Hello"),
                 ),
                 // Top Swiper
                 SliverToBoxAdapter(
-                  child: buildSwiper(List.generate(7, getRandomImg)),
+                  child: BuildSwiper(List.generate(7, getRandomImg)),
                 ),
                 SliverGrid(
                   delegate: SliverChildBuilderDelegate(
@@ -354,10 +334,7 @@ class _VapDemoPageState extends State<VapDemoPage>
                         child: Stack(
                           children: [
                             CachedNetworkImage(
-                              imageUrl: imgUrl,
-                              width: 200,
-                              height: 200,
-                            ),
+                                imageUrl: imgUrl, width: 200, height: 200),
                             for (var i = 0; i < selectedImages.length; i++)
                               Positioned(
                                 left: 40.0 * i,
@@ -405,9 +382,7 @@ class _VapDemoPageState extends State<VapDemoPage>
                                   ),
                                 ),
                               ),
-                            Marquee(
-                              text: 'There ',
-                            ),
+                            Marquee(text: 'There '),
                             ExtendedText(
                               gradientConfig: GradientConfig(
                                 gradient: const LinearGradient(
@@ -454,7 +429,7 @@ class _VapDemoPageState extends State<VapDemoPage>
                 ),
                 // Bottom Swiper
                 SliverToBoxAdapter(
-                  child: buildSwiper(List.generate(7, getRandomImg)),
+                  child: BuildSwiper(List.generate(7, getRandomImg)),
                 ),
               ],
             ),
@@ -793,5 +768,30 @@ class AnimationGroup {
     for (var controller in controllers) {
       controller.dispose();
     }
+  }
+}
+
+class BuildSwiper extends StatelessWidget {
+  const BuildSwiper(this.imageUrls, {super.key});
+
+  final List<String> imageUrls;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 100,
+      child: Swiper(
+        itemBuilder: (BuildContext context, int index) {
+          return CachedNetworkImage(
+            imageUrl: imageUrls[index],
+            fit: BoxFit.cover,
+          );
+        },
+        itemCount: imageUrls.length,
+        autoplay: true,
+        pagination: const SwiperPagination(),
+        control: const SwiperControl(),
+      ),
+    );
   }
 }
