@@ -5,7 +5,6 @@ import 'package:flutter_vap/player_view.dart';
 import 'package:flutter_vap/queue_util.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:marquee/marquee.dart';
 import 'package:oom_demo/fps_utils.dart';
@@ -85,7 +84,6 @@ class _VapDemoPageState extends State<VapDemoPage>
   // 动画相关变量
   List<AnimationGroup> _animationGroups =
       []; // Store multiple groups of animations
-  bool _isAnimating = false;
 
   // Video URLs for demo
   final List<String> videoUrls = [
@@ -96,6 +94,12 @@ class _VapDemoPageState extends State<VapDemoPage>
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
   final List<String> _imageUrls = List.generate(1550, getRandomImg);
+
+  // Define ValueNotifiers for the variables that need to be updated
+  // 定义需要更新的变量的ValueNotifiers
+  late ValueNotifier<List<String>> imageUrlsNotifier;
+  late ValueNotifier<List<String>> activePlayersNotifier;
+  late ValueNotifier<List<AnimationGroup>> animationGroupsNotifier;
 
   static String getRandomImg(int index) {
     final img = imagesList[index % imagesList.length];
@@ -108,24 +112,18 @@ class _VapDemoPageState extends State<VapDemoPage>
 
   void _onRefresh() async {
     await Future.delayed(const Duration(milliseconds: 1000));
-    setState(() {
-      _imageUrls.shuffle();
-    });
+    imageUrlsNotifier.value = List.from(imageUrlsNotifier.value)..shuffle();
     _refreshController.refreshCompleted();
   }
 
   void _onLoading() async {
     await Future.delayed(const Duration(milliseconds: 1000));
     if (mounted) {
-      setState(() {
-        _imageUrls.addAll(
-          List.generate(
+      imageUrlsNotifier.value = List.from(imageUrlsNotifier.value)
+        ..addAll(List.generate(
             10,
             (index) =>
-                'https://loremflickr.com/100/100/music?lock=${_imageUrls.length + index}',
-          ),
-        );
-      });
+                'https://loremflickr.com/100/100/music?lock=${imageUrlsNotifier.value.length + index}'));
     }
     _refreshController.loadComplete();
   }
@@ -136,6 +134,14 @@ class _VapDemoPageState extends State<VapDemoPage>
     // Initialize base player
     // 初始化基础播放器
     QueueUtil.init(playerTag);
+
+    // Initialize ValueNotifiers
+    // 初始化ValueNotifiers
+    imageUrlsNotifier = ValueNotifier<List<String>>(List.from(_imageUrls));
+    activePlayersNotifier =
+        ValueNotifier<List<String>>(List.from(_activePlayers));
+    animationGroupsNotifier =
+        ValueNotifier<List<AnimationGroup>>(List.from(_animationGroups));
   }
 
   @override
@@ -160,6 +166,11 @@ class _VapDemoPageState extends State<VapDemoPage>
     }
     _refreshController.dispose();
 
+    // Dispose ValueNotifiers
+    // 释放ValueNotifiers
+    imageUrlsNotifier.dispose();
+    activePlayersNotifier.dispose();
+    animationGroupsNotifier.dispose();
     super.dispose();
   }
 
@@ -168,20 +179,18 @@ class _VapDemoPageState extends State<VapDemoPage>
   void _createExplosionAnimation() {
     print("Creating new animation group"); // Debug print
 
-    setState(() {
-      late final AnimationGroup group;
-      group = AnimationGroup(
-        vsync: this,
-        onComplete: () {
-          setState(() {
-            // Remove the group when all its animations complete
-            // 当所有动画完成时移除该组
-            _animationGroups.remove(group);
-          });
-        },
-      );
-      _animationGroups.add(group);
-    });
+    late final AnimationGroup group;
+    group = AnimationGroup(
+      vsync: this,
+      onComplete: () {
+        // Remove the group when all its animations complete
+        // 当所有动画完成时移除该组
+        animationGroupsNotifier.value = List.from(animationGroupsNotifier.value)
+          ..remove(group);
+      },
+    );
+    animationGroupsNotifier.value = List.from(animationGroupsNotifier.value)
+      ..add(group);
   }
 
   // Play a VAP video with a unique tag
@@ -196,9 +205,8 @@ class _VapDemoPageState extends State<VapDemoPage>
 
       // Add to active players after initialization
       // 初始化后添加到活动播放器列表
-      setState(() {
-        _activePlayers.add(uniqueTag);
-      });
+      activePlayersNotifier.value = List.from(activePlayersNotifier.value)
+        ..add(uniqueTag);
 
       // Wait for widget to build
       // 等待部件构建
@@ -215,9 +223,8 @@ class _VapDemoPageState extends State<VapDemoPage>
           if (!mounted) return;
           // Remove player when video completes
           // 视频完成时移除播放器
-          setState(() {
-            _activePlayers.remove(uniqueTag);
-          });
+          activePlayersNotifier.value = List.from(activePlayersNotifier.value)
+            ..remove(uniqueTag);
           QueueUtil.get(uniqueTag)?.clear();
           QueueUtil.remove(uniqueTag);
           print('Video playback completed for $uniqueTag');
@@ -228,13 +235,12 @@ class _VapDemoPageState extends State<VapDemoPage>
       // Clean up on error
       // 错误时清理
       final uniqueTag = "player_${DateTime.now().millisecondsSinceEpoch}";
-      if (_activePlayers.contains(uniqueTag)) {
-        setState(() {
-          _activePlayers.remove(uniqueTag);
-        });
-        QueueUtil.get(uniqueTag)?.clear();
-        QueueUtil.remove(uniqueTag);
+      if (activePlayersNotifier.value.contains(uniqueTag)) {
+        activePlayersNotifier.value = List.from(activePlayersNotifier.value)
+          ..remove(uniqueTag);
       }
+      QueueUtil.get(uniqueTag)?.clear();
+      QueueUtil.remove(uniqueTag);
 
       // Show error to user
       // 向用户显示错误
@@ -261,8 +267,8 @@ class _VapDemoPageState extends State<VapDemoPage>
         },
         itemCount: imageUrls.length,
         autoplay: true,
-        pagination: SwiperPagination(),
-        control: SwiperControl(),
+        pagination: const SwiperPagination(),
+        control: const SwiperControl(),
       ),
     );
   }
@@ -281,7 +287,7 @@ class _VapDemoPageState extends State<VapDemoPage>
           IconButton(
             onPressed: () {
               Navigator.of(context).push(CupertinoPageRoute(builder: (context) {
-                return GameWebViewPage();
+                return const GameWebViewPage();
               }));
             },
             icon: const Icon(Icons.web),
@@ -329,7 +335,7 @@ class _VapDemoPageState extends State<VapDemoPage>
               slivers: [
                 SliverToBoxAdapter(
                   child: Container(
-                    child: Text("Hello"),
+                    child: const Text("Hello"),
                   ),
                 ),
                 // Top Swiper
@@ -422,8 +428,8 @@ class _VapDemoPageState extends State<VapDemoPage>
                               .push(CupertinoPageRoute(builder: (context) {
                             return Scaffold(
                               appBar: AppBar(),
-                              body: NetworkImageWidget(
-                                url: imgUrl,
+                              body: CachedNetworkImage(
+                                imageUrl: imgUrl,
                                 width: MediaQuery.of(context).size.width,
                                 height: MediaQuery.of(context).size.height,
                               ),
@@ -456,65 +462,87 @@ class _VapDemoPageState extends State<VapDemoPage>
 
           // Multiple VAP players
           // 多个 VAP 播放器
-          if (_activePlayers.isNotEmpty) ...[
-            for (final tag in _activePlayers)
-              Positioned.fill(
-                child: PlayerView(
-                  key: ValueKey(tag), // Add key for better widget management
-                  tag: tag,
-                  ignoring: true,
-                  autoRemove: true,
-                ),
-              ),
-          ],
+          ValueListenableBuilder<List<String>>(
+            valueListenable: activePlayersNotifier,
+            builder: (context, activePlayers, child) {
+              return Stack(
+                children: [
+                  for (final tag in activePlayers)
+                    Positioned.fill(
+                      child: PlayerView(
+                        key: ValueKey(tag),
+                        tag: tag,
+                        ignoring: true,
+                        autoRemove: true,
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
           // Animated images
           // 动画图片
-          ..._animationGroups.map(
-            (group) => Positioned.fill(
-              child: IgnorePointer(
-                child: Stack(
-                  children: List.generate(30, (index) {
-                    return AnimatedBuilder(
-                      animation: group.controllers[index],
-                      builder: (context, child) {
-                        return Positioned(
-                          left: MediaQuery.of(context).size.width / 2 +
-                              group.positionAnimations[index].value.dx,
-                          top: MediaQuery.of(context).size.height / 2 +
-                              group.positionAnimations[index].value.dy,
-                          child: Transform.scale(
-                            scale: group.scaleAnimations[index].value,
-                            child: Container(
-                              width: 50,
-                              height: 50,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border:
-                                    Border.all(color: Colors.white, width: 2),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.3),
-                                    blurRadius: 5,
-                                    spreadRadius: 2,
-                                  ),
-                                ],
-                                image: DecorationImage(
-                                  image: CachedNetworkImageProvider(
-                                    flyImage,
-                                    cacheManager: CustomCacheManager.instance,
-                                  ),
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            ),
+          ValueListenableBuilder<List<AnimationGroup>>(
+            valueListenable: animationGroupsNotifier,
+            builder: (context, animationGroups, child) {
+              return Stack(
+                children: animationGroups
+                    .map(
+                      (group) => Positioned.fill(
+                        child: IgnorePointer(
+                          child: Stack(
+                            children: List.generate(30, (index) {
+                              return AnimatedBuilder(
+                                animation: group.controllers[index],
+                                builder: (context, child) {
+                                  return Positioned(
+                                    left:
+                                        MediaQuery.of(context).size.width / 2 +
+                                            group.positionAnimations[index]
+                                                .value.dx,
+                                    top:
+                                        MediaQuery.of(context).size.height / 2 +
+                                            group.positionAnimations[index]
+                                                .value.dy,
+                                    child: Transform.scale(
+                                      scale: group.scaleAnimations[index].value,
+                                      child: Container(
+                                        width: 50,
+                                        height: 50,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                              color: Colors.white, width: 2),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color:
+                                                  Colors.black.withOpacity(0.3),
+                                              blurRadius: 5,
+                                              spreadRadius: 2,
+                                            ),
+                                          ],
+                                          image: DecorationImage(
+                                            image: CachedNetworkImageProvider(
+                                              flyImage,
+                                              cacheManager:
+                                                  CustomCacheManager.instance,
+                                            ),
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              );
+                            }),
                           ),
-                        );
-                      },
-                    );
-                  }),
-                ),
-              ),
-            ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
           ),
         ],
       ),
@@ -620,143 +648,6 @@ class _VapDemoPageState extends State<VapDemoPage>
   }
 }
 
-class NetworkImageWidget extends StatefulWidget {
-  final String url;
-  final double? width;
-  final double? height;
-  final Color? color;
-  final BoxFit fit;
-  final String? placeHolder;
-  final Widget? placeHolderWidget;
-  final Widget? errorWidget;
-  final int fadeInDuration;
-  final bool repain;
-  final bool home;
-  final int? index;
-
-  const NetworkImageWidget({
-    super.key,
-    required this.url,
-    this.width,
-    this.height,
-    this.color,
-    this.fit = BoxFit.cover,
-    this.placeHolder,
-    this.placeHolderWidget,
-    this.errorWidget,
-    this.fadeInDuration = 0,
-    this.repain = false,
-    this.home = false,
-    this.index,
-  });
-
-  @override
-  State<NetworkImageWidget> createState() => _NetworkImageWidgetState();
-}
-
-class _NetworkImageWidgetState extends State<NetworkImageWidget>
-    with AutomaticKeepAliveClientMixin {
-  static final Map<String, CachedNetworkImageProvider> _imageProviderCache = {};
-  ImageProvider? _cachedProvider;
-  bool _isLoaded = false;
-  bool _didInitialize = false;
-
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_didInitialize) {
-      _cachedProvider = _getImageProvider(widget.url);
-      _precacheImage();
-      _didInitialize = true;
-    }
-  }
-
-  void _precacheImage() {
-    if (_cachedProvider != null) {
-      precacheImage(_cachedProvider!, context).then((_) {
-        if (mounted) {
-          setState(() {
-            _isLoaded = true;
-          });
-        }
-      });
-    }
-  }
-
-  CachedNetworkImageProvider _getImageProvider(String url) {
-    // Add size parameters to the URL if they're not already present
-    final Uri uri = Uri.parse(url);
-    final Map<String, String> queryParams =
-        Map<String, String>.from(uri.queryParameters);
-
-    if (!queryParams.containsKey('w')) {
-      queryParams['w'] = '600';
-    }
-    if (!queryParams.containsKey('h')) {
-      queryParams['h'] = '600';
-    }
-
-    final String modifiedUrl =
-        uri.replace(queryParameters: queryParams).toString();
-
-    return _imageProviderCache.putIfAbsent(
-      modifiedUrl,
-      () => CachedNetworkImageProvider(
-        modifiedUrl,
-        cacheManager: CustomCacheManager.instance,
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    if (widget.index != null) {
-      print('Disposing NetworkImageWidget at index: ${widget.index}');
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-
-    if (!widget.url.startsWith("http")) {
-      return const SizedBox();
-    }
-
-    if (_isLoaded && _cachedProvider != null) {
-      Widget imageWidget = Image(
-        image: _cachedProvider!,
-        width: widget.width ?? 600,
-        height: widget.height ?? 600,
-        fit: widget.fit,
-        gaplessPlayback: true,
-        isAntiAlias: true,
-      );
-      return widget.repain ? RepaintBoundary(child: imageWidget) : imageWidget;
-    }
-
-    // Show placeholder while loading
-    return widget.placeHolderWidget ??
-        (widget.placeHolder != null
-            ? Image.asset(
-                widget.placeHolder!,
-                width: widget.width,
-                height: widget.height,
-              )
-            : const SizedBox(
-                width: 200,
-                height: 200,
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              ));
-  }
-}
-
 const imagesList = [
   'https://dynamic-media-cdn.tripadvisor.com/media/photo-o/15/61/8a/53/my-pup.jpg?w=1400&h=800&s=1',
   'https://dynamic-media-cdn.tripadvisor.com/media/photo-o/2e/95/59/ab/edit.jpg?w=1100&h=600&s=1',
@@ -785,8 +676,10 @@ const imagesList = [
 ];
 
 class GameWebViewPage extends StatefulWidget {
+  const GameWebViewPage({super.key});
+
   @override
-  _GameWebViewPageState createState() => _GameWebViewPageState();
+  State<GameWebViewPage> createState() => _GameWebViewPageState();
 }
 
 class _GameWebViewPageState extends State<GameWebViewPage> {
@@ -804,7 +697,7 @@ class _GameWebViewPageState extends State<GameWebViewPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('4399 WebView'),
+        title: const Text('4399 WebView'),
         actions: [
           IconButton(
             onPressed: () {
@@ -850,7 +743,7 @@ class AnimationGroup {
       // Random angle for each image
       // 每个图片的随机角度
       final angle = (i * 12.0) * (3.14159 / 180.0);
-      final radius = 300.0; // Maximum distance from center
+      const radius = 300.0; // Maximum distance from center
 
       // Create position animation
       // 创建位置动画
