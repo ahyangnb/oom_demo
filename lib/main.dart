@@ -3,9 +3,7 @@ import 'package:extended_text/extended_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_vap/player_view.dart';
 import 'package:flutter_vap/queue_util.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:marquee/marquee.dart';
 import 'package:oom_demo/fps_utils.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
@@ -15,24 +13,8 @@ import 'dart:math';
 
 import 'package:webview_flutter/webview_flutter.dart';
 
-class CustomCacheManager {
-  static const key = 'customCacheKey';
-  static CacheManager instance = CacheManager(
-    Config(
-      key,
-      stalePeriod: const Duration(days: 7),
-      maxNrOfCacheObjects: 600,
-      repo: JsonCacheInfoRepository(databaseName: key),
-      fileSystem: IOFileSystem(key),
-      fileService: HttpFileService(),
-    ),
-  );
-}
-
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  CachedNetworkImage.logLevel = CacheManagerLogLevel.debug;
 
   PaintingBinding.instance.imageCache.maximumSizeBytes = 300 << 20;
 
@@ -171,6 +153,13 @@ class _VapDemoPageState extends State<VapDemoPage>
     imageUrlsNotifier.dispose();
     activePlayersNotifier.dispose();
     animationGroupsNotifier.dispose();
+
+    // Dispose animations
+    // 释放动画
+    for (var group in animationGroupsNotifier.value) {
+      group.dispose();
+    }
+
     super.dispose();
   }
 
@@ -333,8 +322,8 @@ class _VapDemoPageState extends State<VapDemoPage>
                         /// 会重新loading
                         child: Stack(
                           children: [
-                            CachedNetworkImage(
-                                imageUrl: imgUrl, width: 200, height: 200),
+                            Image.network(
+                                imgUrl, width: 200, height: 200),
                             for (var i = 0; i < selectedImages.length; i++)
                               Positioned(
                                 left: 40.0 * i,
@@ -345,15 +334,11 @@ class _VapDemoPageState extends State<VapDemoPage>
                                         color: Colors.white, width: 2),
                                   ),
                                   child: ClipOval(
-                                    child: CachedNetworkImage(
-                                      imageUrl: selectedImages[i],
+                                    child: Image.network(
+                                      selectedImages[i],
                                       width: 20,
                                       height: 20,
                                       fit: BoxFit.cover,
-                                      placeholder: (context, url) =>
-                                          const Center(
-                                        child: CircularProgressIndicator(),
-                                      ),
                                     ),
                                   ),
                                 ),
@@ -369,15 +354,11 @@ class _VapDemoPageState extends State<VapDemoPage>
                                         color: Colors.white, width: 2),
                                   ),
                                   child: ClipOval(
-                                    child: CachedNetworkImage(
-                                      imageUrl: sameImageImage,
+                                    child: Image.network(
+                                      sameImageImage,
                                       width: 20,
                                       height: 20,
                                       fit: BoxFit.cover,
-                                      placeholder: (context, url) =>
-                                          const Center(
-                                        child: CircularProgressIndicator(),
-                                      ),
                                     ),
                                   ),
                                 ),
@@ -403,8 +384,8 @@ class _VapDemoPageState extends State<VapDemoPage>
                               .push(CupertinoPageRoute(builder: (context) {
                             return Scaffold(
                               appBar: AppBar(),
-                              body: CachedNetworkImage(
-                                imageUrl: imgUrl,
+                              body: Image.network(
+                                imgUrl,
                                 width: MediaQuery.of(context).size.width,
                                 height: MediaQuery.of(context).size.height,
                               ),
@@ -497,10 +478,8 @@ class _VapDemoPageState extends State<VapDemoPage>
                                             ),
                                           ],
                                           image: DecorationImage(
-                                            image: CachedNetworkImageProvider(
+                                            image: NetworkImage(
                                               flyImage,
-                                              cacheManager:
-                                                  CustomCacheManager.instance,
                                             ),
                                             fit: BoxFit.cover,
                                           ),
@@ -570,17 +549,11 @@ class _VapDemoPageState extends State<VapDemoPage>
                                             color: Colors.white, width: 2),
                                       ),
                                       child: ClipOval(
-                                        child: CachedNetworkImage(
-                                          imageUrl: selectedImages[i],
+                                        child: Image.network(
+                                          selectedImages[i],
                                           width: 20,
                                           height: 20,
                                           fit: BoxFit.cover,
-                                          placeholder: (context, url) =>
-                                              const Center(
-                                            child: CircularProgressIndicator(
-                                              color: Colors.white,
-                                            ),
-                                          ),
                                         ),
                                       ),
                                     ),
@@ -782,8 +755,8 @@ class BuildSwiper extends StatelessWidget {
       height: 100,
       child: Swiper(
         itemBuilder: (BuildContext context, int index) {
-          return CachedNetworkImage(
-            imageUrl: imageUrls[index],
+          return Image.network(
+            imageUrls[index],
             fit: BoxFit.cover,
           );
         },
