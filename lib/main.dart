@@ -322,8 +322,7 @@ class _VapDemoPageState extends State<VapDemoPage>
                         /// 会重新loading
                         child: Stack(
                           children: [
-                            Image.network(
-                                imgUrl, width: 200, height: 200),
+                            Image.network(imgUrl, width: 200, height: 200),
                             for (var i = 0; i < selectedImages.length; i++)
                               Positioned(
                                 left: 40.0 * i,
