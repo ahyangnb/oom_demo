@@ -309,12 +309,12 @@ class _VapDemoPageState extends State<VapDemoPage>
                 ),
                 // Top Swiper
                 SliverToBoxAdapter(
-                  child: BuildSwiper(List.generate(7, getRandomImg)),
+                  child: BuildSwiper(List.generate(2, getRandomImg)),
                 ),
                 SliverGrid(
                   delegate: SliverChildBuilderDelegate(
                         (BuildContext context, int index) {
-                      final selectedImages = List.generate(5, getRandomImg);
+                      final selectedImages = List.generate(2, getRandomImg);
 
                       final imgUrl = _imageUrls[index];
                       return InkWell(
@@ -342,7 +342,7 @@ class _VapDemoPageState extends State<VapDemoPage>
                                   ),
                                 ),
                               ),
-                            for (var i = 0; i < 2; i++)
+                            for (var i = 0; i < 1; i++)
                               Positioned(
                                 left: 40.0 * i,
                                 bottom: 10,
